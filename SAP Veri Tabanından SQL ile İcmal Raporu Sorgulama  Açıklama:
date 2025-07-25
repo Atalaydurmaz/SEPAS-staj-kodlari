@@ -1,0 +1,130 @@
+select 
+t.ABONE_GRUBU,t.TARIFTYP,t.ZZSOZLESMETUR_TEXT,
+--t.BILLING_PERIOD,
+CASE WHEN t.ZZSOZLESMETUR_TEXT in ('Ulusal Abonelik','Son Kaynak','K�sa S�reli Abonelik','�l��ms�z Abonelik','') THEN 'UT'
+ELSE 'ST' END AS 'ST/UT',
+t.TARIFTYP_TEXT,
+CASE WHEN t.TARIFTYP like ('%CZ%') THEN '�ok Zaman' ELSE 'Tek Zaman' END AS 'TarifeTipi',
+case when t.EFATURA in ('X') then 'Efatura' else 'Earsiv' end as EfaturaMukellefiMi, 
+sum (t.T0)as T0_T�k,
+sum (t.T1)as T1_T�k,
+sum (t.T2)as T2_T�k,
+sum (t.T3)as T3_T�k,
+isnull(Sum(t.T0_K2),0) as T0_Kad2T�k,
+isnull(Sum(t.T1_K2),0) as T1_Kad2T�k,
+isnull(Sum(t.T2_K2),0) as T2_Kad2T�k,
+isnull(Sum(t.T3_K2),0) as T3_Kad2T�k,
+sum (t.T0_EKTUK+isnull(t.T0_EKTUK_K2,0)) as T0_EkT�k,
+sum (t.T1_EKTUK+isnull(t.T1_EKTUK_K2,0)) as T1_EkT�k,
+sum (t.T2_EKTUK+isnull(t.T2_EKTUK_K2,0)) as T2_EkT�k,
+sum (t.T3_EKTUK+isnull(t.T3_EKTUK_K2,0)) as T3_EkT�k,
+sum (t.T0_TK_TUK) as 'TO_Trafo_Kayb�',
+SUM (t.T1_TK_TUK) as 'T1_Trafo_Kayb�',
+SUM (t.T2_TK_TUK) as 'T2_Trafo_Kayb�',
+SUM (t.T3_TK_TUK) as 'T3_Trafo_Kayb�',
+sum (t.T0_TUTAR)as T0_Aktif_TL,
+SUM (t.T1_TUTAR) as T1_Aktif_TL,
+SUM (t.T2_TUTAR)AS T2_Aktif_TL,
+sum (t.T3_TUTAR) AS T3_Aktif_TL,
+isnull(SUM (t.T0_TUTAR_K2),0)as T0_Kad2TL,
+isnull(SUM (t.T1_TUTAR_K2),0)as T1_Kad2TL,
+isnull(SUM (t.T2_TUTAR_K2),0)as T2_Kad2TL,
+isnull(SUM (t.T3_TUTAR_K2),0)as T3_Kad2TL,
+sum (t.EKTUK_TUTARI+ isnull(t.EKTUK_TUTARI_K2,0)) as 'Ektuk_TL',
+sum (t.T0_TK_BEDELI) as 'T0_TrafoKayb�_TL',
+sum (t.T1_TK_BEDELI) as 'T1_TrafoKayb�_TL',
+sum (t.T2_TK_BEDELI) as 'T2_TrafoKayb�_TL',
+sum(t.T3_TK_BEDELI) as 'T3_TrafoKayb�_TL',
+SUM (t.ENERJI_FONU_TUTARI) as 'EnerjiFonu',
+SUM (t.TRT_TUTARI) as 'TRTFonu',
+SUM (t.DAG_BEDELI) as 'Da��t�mBedeli',
+SUM (t.YEKDEM_BEDELI) as 'YEKDEMBedeli',
+sum (t.REAKTIF_BEDELI) as 'Reaktif_TL',
+SUM (t.BTV_TUTARI) as 'BTV_TL',
+SUM (t.GUC_BEDELI) as 'G��_Bedeli',
+SUM (t.GUC_ASIM_BEDELI) as 'G��_A��m_Bedeli',
+SUM (t.TUIK_AKTIF_ENERJI) As 'KIK_FIYAT_FARKI',
+SUM (t.TUIK_DAGITIM_FON) AS 'KIK_FIYAT_FARKI_KDV_HARIC',
+SUM (t.GUVENCE_BEDELI) as 'G�vence Bedeli',
+SUM (t.SOKME_TAKMA_BEDELI) as 'S�kme_Takma Bedeli',
+SUM (t.AK_BEDELI) AS 'A�ma-Kesme Bedeli',
+SUM (t.SK_BEDELI) as 'Saya� Kontrol Bedeli',
+SUM (t.GEC_BEDELI) as 'Gecikme_Bedeli',
+SUM ((t.ROUNDO+t.ROUND)) as 'Yuvarlama',
+SUM (t.YEKDEM_FYT_FARKI) as 'YekdemFiyatFarki',
+SUM (t.KDV_MATRAHI) as 'KDV Matrah�',
+SUM (t.KDV) as 'KDV',
+SUM (T.FATURA_TUTARI) as 'Fatura_Tutar',
+SUM (t.TOTAL_AMNT) as '�denecek Tutar',
+SUM (case when t.OPBEL like ('6%')then 1 else 0 end) as Bas�lanFaturaSayisi,
+SUM (t.TENZIL_ILAVE) as 'Tenzil_�lave',
+SUM (t.TENZIL_ILAVE_KDV ) as 'Tenzil_�lave_KDV',
+t.IL,
+sum (t.FIYAT_FARKI) as 'Fiyat Fark�',
+SUM (t.LIS_T0EKTUK) as 'LISANSIZ URET�M MAHSUP T0',
+SUM (t.LIS_T1EKTUK) as 'LISANSIZ URET�M MAHSUP T1',
+SUM (t.LIS_T2EKTUK) as 'LISANSIZ URET�M MAHSUP T2',
+SUM (t.LIS_T3EKTUK) as 'LISANSIZ URET�M MAHSUP T3',
+SUM (t.LIS_T0EKTUK_K2) as 'LISANSIZ URET�M MAHSUP T0 K2',
+SUM (t.LIS_T1EKTUK_K2) as 'LISANSIZ URET�M MAHSUP T1 K2',
+SUM (t.LIS_T2EKTUK_K2) as 'LISANSIZ URET�M MAHSUP T2 K2',
+SUM (t.LIS_T3EKTUK_K2) as 'LISANSIZ URET�M MAHSUP T3 K2',
+SUM (t.LIS_EKTUKTUTARI_K2) as 'LISANSIZ URET�M MAHSUP TUTARI K2',
+SUM (t.LIS_EKTUKTUTARI) as 'LISANSIZ URET�M MAHSUP TUTARI',
+(t.TESISAT_AYRISTIRMA_T) as 'TES�SAT AYRI�TIRMA T�R� L�SANSSIZ',
+(t.TESISAT_AYRISTIRMA_2) as 'TES�SAT AYRI�TIRMA T�R�',
+SUM (t.EPDK_T0_TUKETIM) as 'EPDK T0 T�ketim',
+SUM (t.EPDK_T1_TUKETIM) as 'EPDK T1 T�ketim',
+SUM (t.EPDK_T2_TUKETIM) as 'EPDK T2 T�ketim',
+SUM (t.EPDK_T3_TUKETIM) as 'EPDK T3 T�ketim',
+SUM (t.DAG_EKTTR) as 'Da��t�m Ek Tutar�',
+SUM (t.T0_SKTTLI) as 'SKTTli T0 T�ketim',
+SUM (t.T1_SKTTLI) as 'SKTTli T1 T�ketim',
+SUM (t.T2_SKTTLI) as 'SKTTli T2 T�ketim',
+SUM (t.T3_SKTTLI) as 'SKTTli T3 T�ketim',
+SUM (t.T0_TUTAR_SKTTLI) as 'SKTTli T0 Tutar',
+SUM (t.T1_TUTAR_SKTTLI) as 'SKTTli T1 Tutar',
+SUM (t.T2_TUTAR_SKTTLI) as 'SKTTli T2 Tutar',
+SUM (t.T3_TUTAR_SKTTLI) as 'SKTTli T3 Tutar',
+SUM (t.T0_TK_TUK_SKTTLI) as 'SKTTli T0 TK T�ketim',
+SUM (t.T1_TK_TUK_SKTTLI) as 'SKTTli T1 TK T�ketim',
+SUM (t.T2_TK_TUK_SKTTLI) as 'SKTTli T2 TK T�ketim',
+SUM (t.T3_TK_TUK_SKTTLI) as 'SKTTli T3 TK T�ketim',
+SUM (t.T0_TK_BEDELI_SKTTLI) as 'SKTTli T0 TK Bedeli',
+SUM (t.T1_TK_BEDELI_SKTTLI) as 'SKTTli T1 TK Bedeli',
+SUM (t.T2_TK_BEDELI_SKTTLI) as 'SKTTli T2 TK Bedeli',
+SUM (t.T3_TK_BEDELI_SKTTLI) as 'SKTTli T3 TK Bedeli',
+SUM (t.T0_EKTUK_SKTTLI) as 'SKTTli T0 Ek T�ketim',
+SUM (t.T1_EKTUK_SKTTLI) as 'SKTTli T1 Ek T�ketim',
+SUM (t.T2_EKTUK_SKTTLI) as 'SKTTli T2 Ek T�ketim',
+SUM (t.T3_EKTUK_SKTTLI) as 'SKTTli T3 Ek T�ketim',
+SUM (t.EKTUK_TUTARI_SKTTLI) as 'SKTTli Ek T�ketim Tutar�',
+SUM (t.LIS_T0EKTUK_SKTTLI) as 'SKTTli Lisanss�z �retim Mahsup T0',
+SUM (t.LIS_T1EKTUK_SKTTLI) as 'SKTTli Lisanss�z �retim Mahsup T1',
+SUM (t.LIS_T2EKTUK_SKTTLI) as 'SKTTli Lisanss�z �retim Mahsup T2',
+SUM (t.LIS_T3EKTUK_SKTTLI) as 'SKTTli Lisanss�z �retim Mahsup T3',
+SUM (t.LIS_EKTUKTUTARI_SKTTLI) as 'SKTTli Lisanss�z �retim Mahsup Tutar�'
+
+ from sepasTM1DB..ZBI_T_FATURA_RAP t
+ --left join sepasTM1DB..ZBI_T_FATURA_RAP s on t.BelgeNo = s.OPBEL --sat�� raporu kar��la�t�rma
+ where 
+-- t.ERDAT between '2020-07-06 00:00:00' and '2020-07-13 00:00:00'
+-- and t.ERNAM in ('RFC-IMA')
+ --t.GEC_BEDELI > 0
+-- t.BILLING_PERIOD between ('2019/01') and ('2019/12')
+ t.ICMAL_DONEMI in ('2025/06') 
+ --t.ICMAL_DONEMI between ('2018/01')and ('2018/06')
+ --and t.IL like ('%SAKAR%')
+ --and t.DISTRIBUTOR = ('MEDAS')
+ --and t.FAEDN > '2018-01-31 00:00:00'
+ --and t.BelgeNo is not NULL --sat�� raporu kar��la�t�rma
+ --t.BILLING_PERIOD in ('2018/02')
+ --and t.BUDAT > ('2018-05-31') --Muhasebe Kay�t tarihi farkl� olanlar
+ --and t.ILK_OKUMA_TARIHI < ('2018-10-01') 
+ --and t.SON_OKUMA_TARIHI > ('2018-09-30')
+ --and t.ILK_OKUMA_TARIHI is NULL
+--- t.OPBEL in ('611001089789')
+group by
+t.ABONE_GRUBU,
+t.ZZSOZLESMETUR_TEXT,t.TARIFTYP_TEXT,--t.BILLING_PERIOD,
+t.EFATURA,t.TARIFTYP,t.IL,t.FIYAT_FARKI,t.TESISAT_AYRISTIRMA_T,t.TESISAT_AYRISTIRMA_2
