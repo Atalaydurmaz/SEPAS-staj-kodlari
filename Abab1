@@ -1,0 +1,23 @@
+REPORT zmd020.
+
+TABLES: fkkvkp, ever, dfkkbptaxnum, but0id, adr2, evbs, euitrans.
+
+TYPE-POOLS : slis, kkbl0.
+
+DATA : gv_repid     TYPE sy-repid,
+       gt_fieldcat  TYPE slis_t_fieldcat_alv,
+       gt_sort      TYPE slis_t_sortinfo_alv WITH HEADER LINE,
+*      gt_scol      TYPE slis_t_specialcol_alv, "color
+*      gs_scol      TYPE slis_specialcol_alv,  "color
+       gs_layout    TYPE slis_layout_alv.
+*      gt_events    TYPE slis_t_event,
+*      gs_events    LIKE LINE OF gt_events,
+*      gs_alv_var   TYPE disvariant,
+*      gt_topage    TYPE slis_t_listheader.
+
+DATA: BEGIN OF gt_outtab OCCURS 0,
+        gpart     LIKE fkkvkp-gpart,
+        name      LIKE zbi_s_partner_info-name,
+        vkont     LIKE fkkvkp-vkont,
+        kofiz_sd  LIKE fkkvkp-kofiz_sd,
+      END OF gt_outtab.
