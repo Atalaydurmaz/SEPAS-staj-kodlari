@@ -1,0 +1,57 @@
+select 
+T.ANLAGE,
+t.OPBEL,
+--t.ABONE_GRUBU,t.TARIFTYP,t.ZZSOZLESMETUR_TEXT,
+t.BILLING_PERIOD,
+CASE WHEN t.ZZSOZLESMETUR_TEXT in ('Ulusal Abonelik','Son Kaynak','K�sa S�reli Abonelik','�l��ms�z Abonelik') THEN 'UT'
+ELSE 'ST' END AS 'ST/UT',
+--t.TARIFTYP_TEXT,
+--CASE WHEN t.TARIFTYP like ('%CZ%') THEN '�ok Zaman' ELSE 'Tek Zaman' END AS 'TarifeTipi',
+--case when t.EFATURA in ('X') then 'Efatura' else 'Earsiv' end as EfaturaMukellefiMi, 
+sum (t.T0+ isnull(t.T0_K2,0))+ sum (t.T0_EKTUK+isnull(t.T0_EKTUK_K2,0)) as T0_T�k,
+sum (t.T0_TK_TUK) as 'TO_Trafo_Kayb�',
+SUM (t.T1_TK_TUK) as 'T1_Trafo_Kayb�',
+SUM (t.T2_TK_TUK) as 'T2_Trafo_Kayb�',
+SUM (t.T3_TK_TUK) as 'T3_Trafo_Kayb�',
+SUM (t.GUC_BEDELI) as 'G��_Bedeli',
+SUM (t.GUC_ASIM_BEDELI) as 'G��_A��m_Bedeli',
+SUM (t.DAG_BEDELI) as 'Da��t�mBedeli',
+sum (t.REAKTIF_BEDELI) as 'Reaktif_TL',
+SUM (t.AK_BEDELI) AS 'A�ma-Kesme Bedeli',
+SUM (t.SK_BEDELI) as 'Saya� Kontrol Bedeli',
+SUM (case when t.OPBEL like ('6%')then 1 else 0 end) as Bas�lanFaturaSayisi
+--t.IL
+ from sepasTM1DB..ZBI_T_FATURA_RAP t
+ --left join sepasTM1DB..ZBI_T_FATURA_RAP s on t.BelgeNo = s.OPBEL --sat�� raporu kar��la�t�rma
+ where 
+-- t.ERDAT between '2020-07-06 00:00:00' and '2020-07-13 00:00:00'
+-- and t.ERNAM in ('RFC-IMA')
+ --t.GEC_BEDELI > 0
+-- t.BILLING_PERIOD between ('2019/01') and ('2019/12')
+ --t.ICMAL_DONEMI in ('2022/03') --Muhasebe i�in
+ t.BILLING_PERIOD in ('2024/09')
+ --and t.ZZSOZLESMETUR_TEXT not in ('Ulusal Abonelik','Son Kaynak','K�sa S�reli Abonelik','�l��ms�z Abonelik')
+  and t.ZZSOZLESMETUR_TEXT not in ('ST Kanal-B�lge D���','ST Kurumsal-B�lge D���','ST Kamu B�lge D���')
+ and t.TARIFTYP not in ('S1TK00CZ00','S1TK00TZ00','U1TK00CZ00','U1TK00TZ00','Y1TK00CZ00','Y1TK00TZ00')
+ --t.ICMAL_DONEMI between ('2018/01')and ('2018/06')
+ --and t.IL like ('%SAKAR%')
+ --and t.DISTRIBUTOR = ('MEDAS')
+ --and t.FAEDN > '2018-01-31 00:00:00'
+ --and t.BelgeNo is not NULL --sat�� raporu kar��la�t�rma
+ --t.BILLING_PERIOD in ('2018/02')
+ --and t.BUDAT > ('2018-05-31') --Muhasebe Kay�t tarihi farkl� olanlar
+ --and t.ILK_OKUMA_TARIHI < ('2018-10-01') 
+ --and t.SON_OKUMA_TARIHI > ('2018-09-30')
+ --and t.ILK_OKUMA_TARIHI is NULL
+--and t.OPBEL in ('668000012924',
+--'651000013681',
+--'690000005219')
+group by
+t.BILLING_PERIOD,t.ZZSOZLESMETUR_TEXT,T.ANLAGE,
+t.OPBEL
+----t.TARIFTYP_TEXT,--
+----t.EFATURA,t.TARIFTYP,t.IL,t.FIYAT_FARKI
+--having SUM (t.SK_BEDELI)<>0 --Saya� kontrol bedeli kontrol listesi
+--having SUM (t.GUC_BEDELI+t.GUC_ASIM_BEDELI)<>0 --G��/G�� A��m kontrol listesi
+--having SUM (t.AK_BEDELI)<>0 --kesme a�ma kontrol listesi
+having SUM (t.REAKTIF_BEDELI)<>0 --Reaktif kontrol listesi
