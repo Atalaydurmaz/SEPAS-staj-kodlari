@@ -1,0 +1,21 @@
+SELECT gpart, vkont, kofiz_sd,
+       anlage, kofiz, einzdat, auszdat, f~mahnv,
+       zzsozlesmetur, sozlesmetur_txt,
+       zzanaabonegrubu, "Inserted by BTC 10.05.2022
+       but0id-idnumber, but0id-type,
+       dfkkbptaxnum~taxnum, dfkkbptaxnum~taxtype,
+       adr2~telnr_long, adr2~r3_user, adr2~valid_to
+  FROM ( ( ( fkkvkp AS f
+  INNER JOIN ever AS e ON f~vkont = e~vkonto
+  INNER JOIN zmd_t_sozlestur AS z ON e~zzsozlesmetur = z~sozlesmetur )
+* --->Inserted by BTC 31.10.2022
+* INNER JOIN evbs AS b ON b~vstelle EQ e~anlage
+* <---Inserted by BTC 31.10.2022
+  LEFT OUTER JOIN but0id ON f~gpart = but0id~partner )
+  LEFT OUTER JOIN dfkkbptaxnum ON f~gpart = dfkkbptaxnum~partner )
+  LEFT OUTER JOIN but020 ON f~gpart = but020~partner
+  LEFT OUTER JOIN adr2 ON but020~addrnumber = adr2~addrnumber
+INTO TABLE @DATA(lt_data2)
+WHERE gpart  IN @s_gpart
+  AND vkont  IN @s_vkont
+  AND anlage IN @s_anlage.
