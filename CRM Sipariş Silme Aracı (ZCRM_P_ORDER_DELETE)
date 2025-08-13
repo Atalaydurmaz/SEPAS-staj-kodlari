@@ -1,0 +1,420 @@
+
+* Delete CRM Orders
+* sezgin.turan 29.01.2018
+*--------------------------------------------------------------------*
+* Copied from CRM_ORDER_DELETE and modified
+*--------------------------------------------------------------------*
+* Text symbols
+*   001	Grçt.silinsin mi?
+*   002	Seçilen tüm işlemler
+*   003	silinsin mi?
+*   004	Şu belge silinemedi:
+*   005	Silinen belge sayısı:
+*   006	Silinmeyen belge sayısı:
+*   007	Şu belge silindi:
+*   008	Teknik ayarlar
+*   009	Seçim ölçütleri
+*   010	Seçilen belge sayısı:
+*   011	Satınalma tipindeki belgeler işlenemez
+* Selection texts
+*   GV_GROUP  Sunucu grubu
+*   GV_JOBS	  Paralel proseslerin sayısı
+*   GV_PARA	  Paralel
+*   NO_SEND	  İş dokümanı gönderilmedi
+*   OBJECTID  Ticari işlem numarası
+*   PROCTYPE  Ticari işlem türü
+*--------------------------------------------------------------------*
+
+REPORT zcrm_p_order_delete.
+
+INCLUDE:
+  crm_log_states_con.
+
+TABLES:
+  crmd_orderadm_h.
+
+*--------------------------------------------------------------------*
+* data
+*--------------------------------------------------------------------*
+DATA: BEGIN OF gt_orders OCCURS 0,
+        guid      TYPE crmt_object_guid,
+        object_id TYPE crmt_object_id,
+      END OF gt_orders.
+
+DATA: gs_orders LIKE gt_orders,
+      gt_guid   TYPE crmt_object_guid_tab.
+
+DATA: gv_error   TYPE i,
+      gv_deleted TYPE i.
+
+DATA: gv_text(200) TYPE c.
+
+DATA: gv_no_check     TYPE crmt_boolean,
+      gv_no_bdoc_send TYPE crmt_boolean.
+
+DATA: gv_syslog(100) TYPE c.
+
+DATA: gv_maxwps       TYPE  i,
+      gv_freewps      TYPE  i,
+      gv_send_jobs    TYPE  i,
+      gv_receive_jobs TYPE  i.
+
+DATA: gt_deleted_objects TYPE crmt_return_objects_struc OCCURS 0,
+      gt_exception       TYPE  crmt_exception_t,
+      gt_msg             TYPE comt_bal_t_msg,
+      gv_object_type     TYPE crmt_swo_objtyp_process,
+      gv_application     TYPE crmt_application,
+      ls_log             TYPE zcrm_t_order_del,
+      lv_isucontr        TYPE char10,
+      lv_pod             TYPE crmd_isuexta4-a4podguid.
+
+DATA: gs_rzllitab TYPE rzllitab.
+
+*DATA: gv_client_role TYPE t000-cccategory.
+
+*DATA: gv_title(30),
+*      gv_textline1(40),
+*      gv_textline2(40),
+*      gv_answer.
+
+*--------------------------------------------------------------------*
+* SELECTION-SCREEN
+*--------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK tec WITH FRAME TITLE TEXT-008.
+PARAMETERS: p_group TYPE v_srvgrp-server_group.
+PARAMETERS: p_jobs  TYPE i OBLIGATORY DEFAULT 10.
+PARAMETERS: p_para  TYPE crmt_boolean AS CHECKBOX DEFAULT false.
+SELECTION-SCREEN END OF BLOCK tec.
+
+SELECTION-SCREEN BEGIN OF BLOCK sel WITH FRAME TITLE TEXT-009.
+SELECT-OPTIONS: objectid FOR crmd_orderadm_h-object_id.
+PARAMETERS: proctype TYPE crmd_orderadm_h-process_type OBLIGATORY.
+PARAMETERS: no_send  TYPE crmt_boolean DEFAULT true AS CHECKBOX.
+" no_check=X ise silinebilme kontrolü yapmaz
+PARAMETERS: no_check TYPE crmt_boolean DEFAULT false." NO-DISPLAY.
+SELECTION-SCREEN END OF BLOCK sel.
+
+*{ INSERT btc-ssaglam 07.06.2016 14:07:53
+SELECTION-SCREEN BEGIN OF BLOCK log WITH FRAME.
+PARAMETERS: p_syslog TYPE crmt_boolean DEFAULT true AS CHECKBOX.
+SELECTION-SCREEN END OF BLOCK log.
+*} INSERT btc-ssaglam 07.06.2016 14:07:53
+
+*--------------------------------------------------------------------*
+* AT SELECTION-SCREEN
+*--------------------------------------------------------------------*
+AT SELECTION-SCREEN ON p_group.
+  CHECK NOT p_group IS INITIAL.
+  SELECT * FROM rzllitab INTO gs_rzllitab UP TO 1 ROWS
+          WHERE classname EQ p_group
+            AND grouptype EQ 'S'.
+  ENDSELECT.
+  IF sy-subrc NE 0.
+    "& & & girişi &4 içinde mevcut değil (girişi kontrol edin)
+    MESSAGE e058(00) WITH p_group '' '' 'RZLLITAB'.
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* START-OF-SELECTION
+*--------------------------------------------------------------------*
+START-OF-SELECTION.
+  gv_no_bdoc_send = no_send.
+  gv_no_check     = no_check.
+
+  " check administrator authorization for resettig datas
+  AUTHORITY-CHECK OBJECT 'S_ADMI_FCD'
+                  ID     'S_ADMI_FCD'
+                  FIELD  'RSET'.
+  IF sy-subrc NE 0.
+    " Silme veya arşivleme için yetki yok
+    MESSAGE i200(crm_order).
+    STOP.
+  ENDIF.
+
+  " Check if process type belongs to CRM or not
+  SELECT object_type INTO gv_object_type
+         FROM crmc_proc_type
+         WHERE process_type EQ proctype.
+  ENDSELECT.
+
+  SELECT application INTO gv_application
+         FROM crmc_subob_cat
+         WHERE subobj_category EQ gv_object_type.
+  ENDSELECT.
+
+  IF gv_application NE 'CRM'.
+    " Satınalma işlemleri silinemez
+    MESSAGE i202(crm_order).
+    STOP.
+  ENDIF.
+
+*{ DELETE btc-ssaglam 01.03.2016 09:38:55
+*" report must not be executed in productive client
+*  CALL FUNCTION 'TR_SYS_PARAMS'
+*    IMPORTING
+*      system_client_role = gv_client_role.
+*  IF gv_client_role EQ 'P'.
+*    "Bu rapor canlı kullanım üst biriminde kullanılamaz
+*    MESSAGE i201(crm_order) .
+*    STOP.
+*  ENDIF.
+*} DELETE btc-ssaglam 01.03.2016 09:38:55
+
+*{ DELETE btc-ssaglam 01.03.2016 09:39:22
+*" additional security request
+*  gv_title     = text-001. "Grçt.silinsin mi?
+*  gv_textline1 = text-002. "Seçilen tüm işlemler
+*  gv_textline2 = text-003. "silinsin mi?
+*  CLEAR gv_answer.
+*  CALL FUNCTION 'POPUP_TO_CONFIRM_STEP'
+*    EXPORTING
+*      defaultoption = 'N'
+*      textline1     = gv_textline1
+*      textline2     = gv_textline2
+*      titel         = gv_title
+*    IMPORTING
+*      answer        = gv_answer
+*    EXCEPTIONS
+*      OTHERS        = 1.
+*  IF gv_answer NE 'J'.
+*    STOP.
+*  ENDIF.
+*} DELETE btc-ssaglam 01.03.2016 09:39:22
+
+  " Write syslog entry
+  IF p_syslog EQ 'X'.
+    CONCATENATE 'Report: ' sy-repid INTO gv_syslog.
+    CALL 'C_WRITE_SYSLOG_ENTRY'
+      ID 'TYP'  FIELD ' '
+      ID 'KEY'  FIELD 'A00'
+      ID 'DATA' FIELD gv_syslog.
+  ENDIF.
+
+  SELECT guid object_id FROM crmd_orderadm_h
+     INTO CORRESPONDING FIELDS OF TABLE gt_orders
+    WHERE process_type EQ proctype
+      AND object_id    IN objectid.
+
+  IF gt_orders[] IS NOT INITIAL.
+    LOOP AT gt_orders INTO gs_orders.
+
+      CLEAR: lv_isucontr.
+      SELECT SINGLE a4isucontr a4podguid
+        FROM crmd_isuexta4 AS e4
+        INNER JOIN crmd_orderadm_i AS oai
+                ON oai~guid EQ e4~guid
+        INNER JOIN crmd_orderadm_h AS oah
+                ON oah~guid EQ oai~header
+        INTO (lv_isucontr, lv_pod)
+        WHERE oah~object_id  EQ gs_orders-object_id
+          AND e4~a4contend   EQ '99991231'
+          AND e4~a4quotation EQ space
+          AND e4~a4cancelled EQ space.
+
+      ls_log-object_id = gs_orders-object_id.
+      ls_log-contract  = lv_isucontr.
+      ls_log-user_name = sy-uname.
+      ls_log-tarih     = sy-datum.
+      ls_log-saat      = sy-uzeit.
+      ls_log-pod       = lv_pod.
+      MODIFY zcrm_t_order_del FROM ls_log.
+    ENDLOOP.
+  ENDIF.
+
+  IF p_para EQ true.
+    PERFORM start_parallel.
+  ELSE.
+    LOOP AT gt_orders INTO gs_orders.
+
+      CLEAR gt_guid.
+      INSERT gs_orders-guid INTO TABLE gt_guid.
+      CALL FUNCTION 'CRM_ORDER_DELETE'
+        EXPORTING
+          it_objects_to_delete  = gt_guid
+          iv_no_check           = gv_no_check
+          iv_no_bdoc_send       = gv_no_bdoc_send
+        EXCEPTIONS
+          single_deletion_error = 1
+          deletion_error        = 2
+          no_authority          = 3
+          OTHERS                = 4.
+
+      IF sy-subrc NE 0.
+        WRITE: / TEXT-004, gs_orders-object_id.
+        gv_error = gv_error + 1.
+
+        MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+              INTO gv_text.
+
+        WRITE: / gv_text.
+      ELSE.
+        WRITE: / TEXT-007, gs_orders-object_id.
+        gv_deleted = gv_deleted + 1.
+      ENDIF.
+
+      COMMIT WORK.
+    ENDLOOP.
+
+    WRITE: / TEXT-005, gv_deleted.
+    WRITE: / TEXT-006, gv_error.
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*&      Form  start_parallel
+*&---------------------------------------------------------------------*
+FORM start_parallel.
+
+  DATA: lt_guid            TYPE crmt_object_guid_tab,
+        lv_count           TYPE i,
+        lv_taskname(4)     TYPE  n,
+        lv_difjobs         TYPE  i,
+        lv_max             TYPE  i,
+        lv_tabix           TYPE  i,
+        lv_sel             TYPE  i,
+        ls_deleted_objects TYPE crmt_return_objects_struc,
+        ls_exception       TYPE crmt_exception,
+        ls_msg             TYPE bal_s_msg,
+        lv_msg(80)         VALUE space.   "Handling of exceptions
+
+  CALL FUNCTION 'SPBT_INITIALIZE'
+    EXPORTING
+      group_name                     = p_group
+    IMPORTING
+      max_pbt_wps                    = gv_maxwps
+      free_pbt_wps                   = gv_freewps
+    EXCEPTIONS
+      invalid_group_name             = 1
+      internal_error                 = 2
+      pbt_env_already_initialized    = 3
+      currently_no_resources_avail   = 4
+      no_pbt_resources_found         = 5
+      cant_init_different_pbt_groups = 6
+      OTHERS                         = 7.
+
+  " Reduce max jobs, if there are no resources available
+  IF gv_freewps LT p_jobs.
+    p_jobs = gv_freewps.
+  ENDIF.
+
+  DESCRIBE TABLE gt_orders LINES lv_max.
+  lv_taskname = 1.
+
+  LOOP AT gt_orders INTO gs_orders.
+    lv_tabix = sy-tabix.
+
+    INSERT gs_orders-guid INTO TABLE lt_guid.
+    lv_count = lv_count + 1.
+
+    IF lv_count EQ 10 OR lv_tabix GE lv_max.
+
+      DO.
+        CALL FUNCTION 'CRM_ORDER_DELETE_ARFC'
+          STARTING NEW TASK lv_taskname
+          DESTINATION IN GROUP p_group
+          PERFORMING order_build_result ON END OF TASK
+          EXPORTING
+            it_objects_to_delete  = lt_guid
+            iv_no_check           = gv_no_check
+            iv_no_bdoc_send       = gv_no_bdoc_send
+          EXCEPTIONS
+            communication_failure = 1 MESSAGE lv_msg
+            system_failure        = 2 MESSAGE lv_msg
+            resource_failure      = 3
+            OTHERS                = 4.
+
+        CASE sy-subrc.
+          WHEN 0.
+            " ARFC was started -> prepare next call
+            " create unique taskname
+            lv_taskname = lv_taskname + 1.
+            CLEAR lv_count.
+            CLEAR lt_guid.
+            gv_send_jobs = gv_send_jobs + 1.
+            " check maximum of running jobs
+            lv_difjobs = gv_send_jobs - gv_receive_jobs.
+            IF lv_difjobs GE p_jobs.
+              lv_difjobs = gv_receive_jobs + 1.
+              WAIT UNTIL gv_receive_jobs GE lv_difjobs.
+            ENDIF.
+            EXIT.
+          WHEN 1 OR 2.
+            " No Communication- & System-Failure handling
+            WRITE: / lv_msg.
+            STOP.
+          WHEN 3.
+            " No resources available
+            lv_difjobs = gv_receive_jobs + 1.
+            WAIT UNTIL gv_receive_jobs GE lv_difjobs.
+        ENDCASE.
+      ENDDO.
+    ENDIF.
+  ENDLOOP.
+
+  " Wait for asynchron calls
+  WAIT UNTIL gv_receive_jobs GE gv_send_jobs.
+
+  LOOP AT gt_exception INTO ls_exception.
+    lv_tabix = sy-tabix.
+    READ TABLE gt_orders
+               INTO gs_orders
+               WITH KEY
+                 guid = ls_exception-guid.
+    WRITE: /
+    TEXT-004, gs_orders-object_id.
+    gv_error = gv_error + 1.
+
+    READ TABLE gt_msg INTO ls_msg INDEX lv_tabix.
+
+    MESSAGE ID ls_msg-msgid TYPE ls_msg-msgty NUMBER ls_msg-msgno
+          WITH ls_msg-msgv1 ls_msg-msgv2 ls_msg-msgv3 ls_msg-msgv4
+          INTO gv_text.
+    WRITE: / gv_text.
+  ENDLOOP.
+
+  SORT gt_deleted_objects BY object_id.
+  LOOP AT gt_deleted_objects INTO ls_deleted_objects.
+    WRITE: / TEXT-007, ls_deleted_objects-object_id.
+    gv_deleted = gv_deleted + 1.
+  ENDLOOP.
+
+  DESCRIBE TABLE gt_orders LINES lv_sel.
+
+  WRITE: / TEXT-010, lv_sel.
+  WRITE: / TEXT-005, gv_deleted.
+  WRITE: / TEXT-006, gv_error.
+
+ENDFORM.                    " start_parallel
+
+*---------------------------------------------------------------------*
+*  FORM order_build_result
+*---------------------------------------------------------------------*
+FORM order_build_result USING p_taskname.
+
+  DATA: lt_deleted_objects TYPE crmt_return_objects,
+        lt_exception       TYPE  crmt_exception_t,
+        ls_deleted_objects TYPE crmt_return_objects_struc,
+        ls_exception       TYPE crmt_exception,
+        ls_msg             TYPE bal_s_msg,
+        lt_msg             TYPE comt_bal_t_msg,
+        lv_tabix           TYPE sy-tabix.
+
+  " get results from arfc
+  RECEIVE RESULTS FROM FUNCTION 'CRM_ORDER_DELETE_ARFC'
+        IMPORTING
+          et_deleted_objects    = lt_deleted_objects
+          et_exception          = lt_exception
+          et_msg                = lt_msg
+        EXCEPTIONS
+          time_out              = 1
+          communication_failure = 4
+          system_failure        = 5
+          OTHERS                = 99.
+
+  APPEND LINES OF lt_exception TO gt_exception.
+  APPEND LINES OF lt_msg TO gt_msg.
+  INSERT LINES OF lt_deleted_objects INTO TABLE gt_deleted_objects.
+
+  gv_receive_jobs = gv_receive_jobs + 1.
+
+ENDFORM.                    "order_build_result
